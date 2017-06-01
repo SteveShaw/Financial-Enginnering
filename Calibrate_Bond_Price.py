@@ -34,10 +34,16 @@ def GetZCBPrice( lattice ):
        zcb_prcs.append(np.sum(level))
     return np.array(zcb_prcs)
 #def MinLSESolver( initial, target, threshold ):
+    
 a_guess= 0.05
 test_vr = GenBDTShortRateLattice(a_guess, 0.01, N-1)
 eps = BondPricing.ElementaryPrices(test_vr,N-1)
 #eps = RoundLattice(eps)        
 zcbs = GetZCBPrice(eps)
+exponents = np.arange(0, N)
+exponents[0] = 1
+exponents = 1.0/exponents
+rates_guess = np.power(1.0/zcbs, exponents)
+print_rates_guess = (rates_guess - 1)*100.0
 
 #sci_op.leastsq()
