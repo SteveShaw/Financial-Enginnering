@@ -80,6 +80,65 @@ def BondOptionPricing(bond_prcs, rates, strike, expire, opt_type=1, European=Tru
             
     return opt_prc_ls
 
+#for swap, payment is arrear
+#therefore, payment start in t=1
+#the amount of payment is determined by t-1 rates
+def SwapPricing(rate_lattice, fixed_rate, expire, way, p=0.5):
+    price_lattice = []
+    
+    price_lattice.append( ( rate_lattice[-1] - fixed_rate ) / (1. + rate_lattice[-1]) )
+    
+    for i in range(expire - 1):
+        t = i + 2
+        P = price_lattice[0]
+        nrows = round(P.shape[0]/2)
+        avg_prc = np.reshape(P, (nrows, 2))
+        avg_prc = np.average( avg_prc, axis=1, weights=[p,1-p] )
+        forward_prc = avg_prc + rate_lattice[-t] - fixed_rate
+        price_lattice.insert( 0, forward_prc / ( 1. + rate_lattice[-t] ) )
+        
+    return price_lattice
+
+#swaption prcing
+#start - the start period the option will enter
+#length - the length of the underlying swap
+#fixed rate - the fixed rate in the underlying swap
+#way -- payer or receiver: payer: pay fixed and receive float
+#Example: 2-8 payer swaption with fixed rate=11.65%
+#start=2, length=8 --> the option is to enter an 8-year swap in 2 years
+#payments would take place in year 3 through 10 (arrear payment)
+def PricingSwaptionWithCombinedRates( combined_rate_lattice, start, length, fixed_rate, 
+                                     strike_rate, way ):
+    #compute price lattice for t = start + length - 1 to start
+    price_lattice = []
+    end_t = start + length - 1
+    price_lattice.append( ( combined_rate_lattice[end_t] - fixed_rate ) / (1. + combined_rate_lattice[end_t]) )
+    for i in range(length - 1):
+        P = np.repeat( price_lattice[0], 2 )
+        P = np.delete(P, 0)
+        P = np.delete(P, -1)
+        nrows = round(P.shape[0]/2)
+        P = np.reshape(P, (nrows, 2))
+        avg_prc = np.average(P, axis=1, weights=[0.5,0.5])
+        t = start + length - i - 2
+        forward_prc =  avg_prc + (combined_rate_lattice[t] - fixed_rate)
+        price_lattice.insert(0, forward_prc/(1.+combined_rate_lattice[t]))
+    
+    #in t=start, we must use max(S, strike) to get lattice price
+    price_lattice[0] = np.maximum(price_lattice[0], strike_rate )
+    
+    for i in range(start):
+        P = np.repeat( price_lattice[0], 2 )
+        P = np.delete(P, 0)
+        P = np.delete(P, -1)
+        nrows = round(P.shape[0]/2)
+        P = np.reshape(P, (nrows, 2))
+        avg_prc = np.average(P, axis=1, weights=[0.5,0.5])
+        t = start - i - 1
+        price_lattice.insert(0, avg_prc/(1.+combined_rate_lattice[t]))        
+        
+    return price_lattice
+    
 #combine the same rates    
 def GetCombinedForwardRates(r, u, d, N):
     pa = np.array([u,d])
